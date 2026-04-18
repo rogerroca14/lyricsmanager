@@ -10,6 +10,7 @@ from PyQt6.QtGui import QAction, QKeySequence, QIcon
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QSplitter,
     QTabWidget, QLabel, QFileDialog, QProgressBar, QStatusBar, QToolBar,
+    QComboBox,
 )
 
 from config import get_config
@@ -143,6 +144,7 @@ class MainWindow(QMainWindow):
     def _build_statusbar(self) -> None:
         sb = QStatusBar()
         self.setStatusBar(sb)
+
         self._status_label = QLabel(t("status_ready"))
         self._progress = QProgressBar()
         self._progress.setMaximumWidth(180)
@@ -151,6 +153,23 @@ class MainWindow(QMainWindow):
         self._progress.setVisible(False)
         sb.addWidget(self._status_label, 1)
         sb.addPermanentWidget(self._progress)
+
+        # ── Device selector (right side) ──────────────────────────────
+        dev_lbl = QLabel()
+        dev_lbl.setPixmap(_icon("fa5s.headphones", "#555").pixmap(13, 13))
+        dev_lbl.setStyleSheet("margin-right:2px;")
+
+        self._combo_device = QComboBox()
+        self._combo_device.setMaximumWidth(230)
+        self._combo_device.setFixedHeight(18)
+        self._combo_device.setStyleSheet(
+            "QComboBox { font-size:11px; padding:0 4px; border-radius:3px; }"
+        )
+        self._combo_device.currentIndexChanged.connect(self._on_device_changed)
+
+        sb.addPermanentWidget(dev_lbl)
+        sb.addPermanentWidget(self._combo_device)
+        self._populate_device_combo()
 
     # ------------------------------------------------------------------
     # Folder / library
@@ -389,15 +408,45 @@ class MainWindow(QMainWindow):
             self._set_status(f"{path.name}: {msg}")
 
     # ------------------------------------------------------------------
+    # Device selector (status bar)
+    # ------------------------------------------------------------------
+
+    def _populate_device_combo(self) -> None:
+        try:
+            from ui.player import list_output_devices
+        except Exception:
+            self._combo_device.setVisible(False)
+            return
+        try:
+            devices = list_output_devices()
+        except Exception:
+            self._combo_device.setVisible(False)
+            return
+
+        cfg_device = self._cfg.get("audio_output_device")
+        self._combo_device.blockSignals(True)
+        self._combo_device.clear()
+        self._combo_device.addItem(t("player_no_device"), None)
+        for dev in devices:
+            self._combo_device.addItem(dev["display"], dev["id"])
+            if dev["id"] == cfg_device or (cfg_device is None and dev.get("default")):
+                self._combo_device.setCurrentIndex(self._combo_device.count() - 1)
+        self._combo_device.blockSignals(False)
+
+    def _on_device_changed(self, idx: int) -> None:
+        device_id = self._combo_device.itemData(idx)
+        self._cfg.set("audio_output_device", device_id)
+        if self._lyrics_view._player:
+            self._lyrics_view._player.set_device(device_id)
+
+    # ------------------------------------------------------------------
     # Settings
     # ------------------------------------------------------------------
 
     def _open_settings(self) -> None:
         SettingsDialog(self).exec()
-        # Apply device change to the live player
-        device_id = self._cfg.get("audio_output_device")
-        if self._lyrics_view._player:
-            self._lyrics_view._player.set_device(device_id)
+        # Re-sync device combo after settings may have changed
+        self._populate_device_combo()
 
     # ------------------------------------------------------------------
     # Helpers
