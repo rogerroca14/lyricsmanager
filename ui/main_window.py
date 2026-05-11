@@ -131,7 +131,6 @@ class MainWindow(QMainWindow):
         self._tabs.addTab(self._lyrics_view, _icon("fa5s.align-left"), t("tab_lyrics"))
         self._tabs.addTab(self._artwork_view, _icon("fa5s.image"), t("tab_artwork"))
 
-        self._lyrics_view.fetch_requested.connect(self._fetch_lyrics_current)
         self._lyrics_view.save_requested.connect(self._save_lyrics)
         self._artwork_view.fetch_requested.connect(self._fetch_artwork_current)
         self._artwork_view.save_requested.connect(self._save_artwork)
