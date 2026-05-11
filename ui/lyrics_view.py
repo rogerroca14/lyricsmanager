@@ -192,6 +192,7 @@ class LyricsView(QWidget):
         lrc = read_lrc_file(meta.path)
         if lrc:
             self._set_lyrics_text(lrc, "local .lrc")
+            self._btn_save.setEnabled(True)
             return
 
         # Embedded lyrics
@@ -203,6 +204,7 @@ class LyricsView(QWidget):
         if embedded:
             text = embedded[0] if isinstance(embedded, list) else str(embedded)
             self._set_lyrics_text(text, "embedded metadata")
+            self._btn_save.setEnabled(True)
             return
 
         self._source_label.setText(t("lyr_no_lyrics") + " — " + t("lyr_fetch"))
@@ -432,8 +434,26 @@ class LyricsView(QWidget):
         self.fetch_requested.emit()
 
     def _on_save(self) -> None:
-        if self._lyrics_result:
-            self.save_requested.emit(self._lyrics_result)
+        text = self._editor.toPlainText().strip()
+        if not text or not self._meta:
+            return
+
+        from core.lyrics_manager import LyricsResult
+
+        is_synced = bool(parse_lrc(text))
+        base = self._lyrics_result
+        result = LyricsResult(
+            synced=text if is_synced else None,
+            plain=None if is_synced else text,
+            source=(base.source if base else "manual"),
+            title=(base.title if base else self._meta.title),
+            artist=(base.artist if base else self._meta.artist),
+            album=(base.album if base else self._meta.album),
+        )
+        self._lyrics_result = result
+        self.save_requested.emit(result)
 
     def _on_text_changed(self) -> None:
-        self._parse_sync(self._editor.toPlainText())
+        text = self._editor.toPlainText()
+        self._parse_sync(text)
+        self._btn_save.setEnabled(bool(text.strip()) and self._meta is not None)
